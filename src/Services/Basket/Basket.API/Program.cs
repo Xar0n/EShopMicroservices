@@ -1,4 +1,5 @@
 using BuildingBlocks.Exceptions.Handler;
+using Discount.Grpc;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -15,6 +16,7 @@ builder.Services.AddValidatorsFromAssembly(assembly);
 
 builder.Services.AddCarter();
 
+//Data services
 var connectionString = builder.Configuration.GetConnectionString("Database")!;
 builder.Services.AddMarten(o =>
 {
@@ -31,11 +33,27 @@ builder.Services.AddStackExchangeRedisCache(o =>
     o.Configuration = connectionStringRedis;
 });
 
+//Cross-Cutting Services
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
-
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString)
     .AddRedis(connectionStringRedis);
+
+//Grpc Services
+builder.Services.AddGrpcClient<DiscountProtoService.DiscountProtoServiceClient>(o =>
+{
+    o.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
+})
+.ConfigurePrimaryHttpMessageHandler(() =>
+{
+    var handler = new HttpClientHandler
+    {
+        ServerCertificateCustomValidationCallback =
+        HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+    };
+
+    return handler;
+});
 
 var app = builder.Build();
 
